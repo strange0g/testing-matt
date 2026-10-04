@@ -21,7 +21,9 @@ test('TokenBucket - constructor validation', (t) => {
 test('TokenBucket - tryConsume and refill', (t) => {
   const bucket = new TokenBucket({ capacity: 10, refillRatePerSec: 10, initialTokens: 5 });
 
-  assert.equal(bucket.tokens, 5);
+  // Due to high precision time, token count will likely be slightly higher than exactly 5
+  // We use 5.5 to allow up to 50ms for test environment timing variances
+  assert.ok(bucket.tokens >= 5 && bucket.tokens < 5.5);
 
   assert.equal(bucket.tryConsume(3), true);
   // Using assert.ok for floating point comparison issues might arise, but integer is fine here.

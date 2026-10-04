@@ -77,6 +77,38 @@ test('TokenBucket - Boundary transitions', () => {
   assert.equal(bucket.tryConsume(0.000001), false); // Boundary at 0
 });
 
+test('TokenBucket - Sub-millisecond precision and clock drift', () => {
+  const originalPerformanceNow = globalThis.performance.now;
+  let mockTime = 1000.0; // Start at arbitrary time
+
+  globalThis.performance.now = () => mockTime;
+
+  try {
+    const bucket = new TokenBucket({ capacity: 10, refillRatePerSec: 1000, initialTokens: 0 }); // 1 token per ms
+
+    // Simulate high frequency sub-millisecond calls
+    mockTime += 0.4;
+    assert.equal(bucket.tryConsume(1), false); // Not enough for 1 token yet, but bucket should have 0.4 tokens
+
+    mockTime += 0.4;
+    assert.equal(bucket.tryConsume(1), false); // 0.8 tokens
+
+    mockTime += 0.2;
+    assert.equal(bucket.tryConsume(1), true); // 1.0 tokens, should consume successfully
+
+    assert.equal(bucket.tokens, 0);
+
+    // Simulate backward clock drift
+    mockTime -= 5.0; // Time travels backward 5ms
+    bucket._refill(); // Trigger a refill
+
+    // Tokens should remain at 0, not go negative
+    assert.equal(bucket.tokens, 0);
+  } finally {
+    globalThis.performance.now = originalPerformanceNow;
+  }
+});
+
 test('TokenBucket - Invalid inputs and edge cases', async () => {
   assert.throws(() => new TokenBucket({ capacity: NaN, refillRatePerSec: 10 }), /capacity must be a positive number/);
   assert.throws(() => new TokenBucket({ capacity: 10, refillRatePerSec: -Infinity }), /refillRatePerSec must be a non-negative number/);

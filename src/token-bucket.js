@@ -19,13 +19,13 @@ export class TokenBucket {
       this._tokens = capacity;
     }
 
-    this._lastRefillTime = Date.now();
+    this._lastRefillTime = performance.now();
   }
 
   _refill() {
-    const now = Date.now();
+    const now = performance.now();
     if (this._tokens < this._capacity && this._refillRatePerSec > 0) {
-      const elapsedMs = now - this._lastRefillTime;
+      const elapsedMs = Math.max(0, now - this._lastRefillTime);
       const tokensToAdd = (elapsedMs / 1000) * this._refillRatePerSec;
       this._tokens = Math.min(this._capacity, this._tokens + tokensToAdd);
     }
