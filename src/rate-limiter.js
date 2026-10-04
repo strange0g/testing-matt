@@ -32,10 +32,34 @@ export class SlidingWindowRateLimiter {
     this._windowMs = windowMs;
     this._maxRequests = maxRequests;
     this._storage = storageAdapter;
+    this._locks = new Map();
+  }
+
+  async _withLock(key, fn) {
+    let lock = this._locks.get(key);
+    if (!lock) {
+      lock = Promise.resolve();
+    }
+    let resolveLock;
+    const nextLock = new Promise(resolve => {
+      resolveLock = resolve;
+    });
+    const chain = lock.then(() => nextLock).catch(() => nextLock);
+    this._locks.set(key, chain);
+
+    try {
+      await lock;
+      return await fn();
+    } finally {
+      resolveLock();
+      if (this._locks.get(key) === chain) {
+        this._locks.delete(key);
+      }
+    }
   }
 
   async isAllowed(key, tokens = 1) {
-    if (typeof tokens !== 'number' || tokens <= 0) {
+    if (typeof tokens !== 'number' || tokens <= 0 || !Number.isFinite(tokens)) {
       throw new Error('tokens must be a positive number');
     }
 
@@ -50,41 +74,43 @@ export class SlidingWindowRateLimiter {
   }
 
   async record(key, tokens = 1) {
-    if (typeof tokens !== 'number' || tokens <= 0) {
+    if (typeof tokens !== 'number' || tokens <= 0 || !Number.isFinite(tokens)) {
       throw new Error('tokens must be a positive number');
     }
 
-    const now = Date.now();
-    const windowStart = now - this._windowMs;
-    const timestamps = await this._storage.get(key);
+    return this._withLock(key, async () => {
+      const now = Date.now();
+      const windowStart = now - this._windowMs;
+      const timestamps = await this._storage.get(key);
 
-    const validTimestamps = timestamps.filter(ts => ts > windowStart);
+      const validTimestamps = timestamps.filter(ts => ts > windowStart);
 
-    const allowed = (validTimestamps.length + tokens) <= this._maxRequests;
+      const allowed = (validTimestamps.length + tokens) <= this._maxRequests;
 
-    if (allowed) {
-      for (let i = 0; i < tokens; i++) {
-        validTimestamps.push(now);
+      if (allowed) {
+        for (let i = 0; i < tokens; i++) {
+          validTimestamps.push(now);
+        }
+        await this._storage.set(key, validTimestamps);
+      } else {
+        // still save the purged ones to clean up space
+        await this._storage.set(key, validTimestamps);
       }
-      await this._storage.set(key, validTimestamps);
-    } else {
-      // still save the purged ones to clean up space
-      await this._storage.set(key, validTimestamps);
-    }
 
-    const remaining = Math.max(0, this._maxRequests - validTimestamps.length);
-    let resetMs = 0;
+      const remaining = Math.max(0, this._maxRequests - validTimestamps.length);
+      let resetMs = 0;
 
-    if (validTimestamps.length > 0) {
-      const oldestValid = validTimestamps[0];
-      resetMs = Math.max(0, oldestValid + this._windowMs - now);
-    }
+      if (validTimestamps.length > 0) {
+        const oldestValid = validTimestamps[0];
+        resetMs = Math.max(0, oldestValid + this._windowMs - now);
+      }
 
-    return {
-      allowed,
-      remaining,
-      resetMs
-    };
+      return {
+        allowed,
+        remaining,
+        resetMs
+      };
+    });
   }
 
   async reset(key) {

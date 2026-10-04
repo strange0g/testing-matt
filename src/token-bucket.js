@@ -1,9 +1,9 @@
 export class TokenBucket {
   constructor({ capacity, refillRatePerSec, initialTokens }) {
-    if (typeof capacity !== 'number' || capacity <= 0) {
+    if (typeof capacity !== 'number' || capacity <= 0 || !Number.isFinite(capacity)) {
       throw new Error('capacity must be a positive number');
     }
-    if (typeof refillRatePerSec !== 'number' || refillRatePerSec < 0) {
+    if (typeof refillRatePerSec !== 'number' || refillRatePerSec < 0 || !Number.isFinite(refillRatePerSec)) {
       throw new Error('refillRatePerSec must be a non-negative number');
     }
 
@@ -38,7 +38,7 @@ export class TokenBucket {
   }
 
   tryConsume(tokens = 1) {
-    if (typeof tokens !== 'number' || tokens <= 0) {
+    if (typeof tokens !== 'number' || tokens <= 0 || !Number.isFinite(tokens)) {
       throw new Error('tokens must be a positive number');
     }
 
@@ -53,7 +53,7 @@ export class TokenBucket {
   }
 
   async consume(tokens = 1) {
-    if (typeof tokens !== 'number' || tokens <= 0) {
+    if (typeof tokens !== 'number' || tokens <= 0 || !Number.isFinite(tokens)) {
       throw new Error('tokens must be a positive number');
     }
 
