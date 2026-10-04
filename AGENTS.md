@@ -16,3 +16,22 @@ This repository strictly delegates all source code and test file modifications t
 - Standard Node.js test runner: `node:test` and `node:assert/strict`.
 - Zero external dependencies: rely strictly on Node.js built-ins.
 - Zero em-dashes anywhere in prose, code comments, or commit messages.
+
+## Agent skills
+
+### Issue tracker
+
+Local markdown in `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical roles mapped 1:1. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context with root `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+### Jules delegation
+
+All code implementation delegated to Google Jules (`jules.google`). See `docs/agents/jules.md`.
+
