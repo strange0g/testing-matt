@@ -109,6 +109,65 @@ test('TokenBucket - Sub-millisecond precision and clock drift', () => {
   }
 });
 
+test('TokenBucket - High-resolution timing and microsecond refill increments', () => {
+  const originalPerformanceNow = globalThis.performance.now;
+  let mockTime = 1000.0; // Start at arbitrary time
+
+  globalThis.performance.now = () => mockTime;
+
+  try {
+    const bucket = new TokenBucket({ capacity: 10, refillRatePerSec: 1000000, initialTokens: 0 }); // 1000 tokens per ms
+
+    // microsecond timing increments (0.001 ms)
+    for (let i = 0; i < 1000; i++) {
+      mockTime += 0.001;
+      bucket._refill();
+    }
+
+    // Total elapsed time = 1ms, tokens should accumulate to exactly 1000, limited by capacity of 10.
+    assert.ok(bucket.tokens >= 10);
+  } finally {
+    globalThis.performance.now = originalPerformanceNow;
+  }
+});
+
+test('TokenBucket - Ensure monotonic progress across extreme calls', () => {
+  const originalPerformanceNow = globalThis.performance.now;
+  let mockTime = 1000.0;
+
+  globalThis.performance.now = () => mockTime;
+
+  try {
+    const bucket = new TokenBucket({ capacity: 1000, refillRatePerSec: 100, initialTokens: 0 });
+
+    mockTime += 10.0;
+    bucket._refill();
+    // 10ms * 100 tokens/sec = 1 token
+    assert.equal(bucket.tokens, 1);
+
+    // Backward clock drift
+    mockTime -= 5.0;
+    bucket._refill();
+    assert.equal(bucket.tokens, 1);
+
+    // Forward clock drift but not past the original high watermark
+    mockTime += 2.0;
+    bucket._refill();
+    // Tokens shouldn't change since we haven't passed the high watermark of 1010.0 ms
+    assert.equal(bucket.tokens, 1);
+
+    // Forward clock drift past the high watermark
+    mockTime += 5.0;
+    bucket._refill();
+    // Current time is 1012.0 ms. High watermark was 1010.0 ms.
+    // Elapsed time past watermark is 2ms.
+    // 2ms * 100 tokens/sec = 0.2 tokens
+    assert.equal(bucket.tokens, 1.2);
+  } finally {
+    globalThis.performance.now = originalPerformanceNow;
+  }
+});
+
 test('TokenBucket - Invalid inputs and edge cases', async () => {
   assert.throws(() => new TokenBucket({ capacity: NaN, refillRatePerSec: 10 }), /capacity must be a positive number/);
   assert.throws(() => new TokenBucket({ capacity: 10, refillRatePerSec: -Infinity }), /refillRatePerSec must be a non-negative number/);

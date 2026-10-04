@@ -29,7 +29,7 @@ export class TokenBucket {
       const tokensToAdd = (elapsedMs / 1000) * this._refillRatePerSec;
       this._tokens = Math.min(this._capacity, this._tokens + tokensToAdd);
     }
-    this._lastRefillTime = now;
+    this._lastRefillTime = Math.max(this._lastRefillTime, now);
   }
 
   get tokens() {
